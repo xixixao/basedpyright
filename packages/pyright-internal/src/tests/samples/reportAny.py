@@ -18,3 +18,7 @@ qux: Callable[[], Any] = lambda: bar
 match(bar):
     case _:
         ...
+
+bat: list[Any] = []
+
+print(bat)

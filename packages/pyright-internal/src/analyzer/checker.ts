@@ -150,6 +150,7 @@ import {
     isLiteralType,
     isLiteralTypeOrUnion,
     isNoneInstance,
+    isPartlyAny,
     isPartlyUnknown,
     isProperty,
     isTupleClass,
@@ -473,26 +474,34 @@ export class Checker extends ParseTreeWalker {
                                     LocMessage.paramTypeUnknown().format({ paramName: param.name.value }),
                                     param.name
                                 );
-                            } else if (isPartlyUnknown(paramType)) {
-                                const diagAddendum = new DiagnosticAddendum();
-                                diagAddendum.addMessage(
-                                    LocAddendum.paramType().format({
-                                        paramType: this._evaluator.printType(paramType, { expandTypeAlias: true }),
-                                    })
-                                );
-                                this._evaluator.addDiagnostic(
-                                    DiagnosticRule.reportUnknownParameterType,
-                                    LocMessage.paramTypePartiallyUnknown().format({
-                                        paramName: param.name.value,
-                                    }) + diagAddendum.getString(),
-                                    param.name
-                                );
                             } else if (isAny(paramType)) {
                                 this._evaluator.addDiagnostic(
                                     DiagnosticRule.reportAny,
                                     LocMessage.paramTypeAny().format({ paramName: param.name.value }),
                                     param.name
                                 );
+                            } else {
+                                const partlyUnknown = isPartlyUnknown(paramType);
+                                if (partlyUnknown || isPartlyAny(paramType)) {
+                                    const diagAddendum = new DiagnosticAddendum();
+                                    diagAddendum.addMessage(
+                                        LocAddendum.paramType().format({
+                                            paramType: this._evaluator.printType(paramType, { expandTypeAlias: true }),
+                                        })
+                                    );
+                                    this._evaluator.addDiagnostic(
+                                        partlyUnknown
+                                            ? DiagnosticRule.reportUnknownParameterType
+                                            : DiagnosticRule.reportAny,
+                                        (partlyUnknown
+                                            ? LocMessage.paramTypePartiallyUnknown()
+                                            : LocMessage.paramTypePartiallyAny()
+                                        ).format({
+                                            paramName: param.name.value,
+                                        }) + diagAddendum.getString(),
+                                        param.name
+                                    );
+                                }
                             }
                         }
 
@@ -763,6 +772,12 @@ export class Checker extends ParseTreeWalker {
                             LocMessage.paramTypeAny().format({ paramName: param.name.value }),
                             param.name
                         );
+                    } else if (isPartlyAny(paramType)) {
+                        this._evaluator.addDiagnostic(
+                            DiagnosticRule.reportAny,
+                            LocMessage.paramTypePartiallyAny().format({ paramName: param.name.value }),
+                            param.name
+                        );
                     }
                 }
             }
@@ -776,20 +791,32 @@ export class Checker extends ParseTreeWalker {
                     LocMessage.lambdaReturnTypeUnknown(),
                     node.expression
                 );
-            } else if (isPartlyUnknown(returnType)) {
-                this._evaluator.addDiagnostic(
-                    DiagnosticRule.reportUnknownLambdaType,
-                    LocMessage.lambdaReturnTypePartiallyUnknown().format({
-                        returnType: this._evaluator.printType(returnType, { expandTypeAlias: true }),
-                    }),
-                    node.expression
-                );
             } else if (isAny(returnType)) {
                 this._evaluator.addDiagnostic(
                     DiagnosticRule.reportAny,
                     LocMessage.lambdaReturnTypeAny(),
                     node.expression
                 );
+            } else {
+                const partlyUnknown = isPartlyUnknown(returnType);
+                if (partlyUnknown || isPartlyAny(returnType)) {
+                    const formatter = {
+                        returnType: this._evaluator.printType(returnType, { expandTypeAlias: true }),
+                    };
+                    if (partlyUnknown) {
+                        this._evaluator.addDiagnostic(
+                            DiagnosticRule.reportUnknownLambdaType,
+                            LocMessage.lambdaReturnTypePartiallyUnknown().format(formatter),
+                            node.expression
+                        );
+                    } else {
+                        this._evaluator.addDiagnostic(
+                            DiagnosticRule.reportAny,
+                            LocMessage.lambdaReturnTypePartiallyAny().format(formatter),
+                            node.expression
+                        );
+                    }
+                }
             }
         }
 
@@ -1057,20 +1084,33 @@ export class Checker extends ParseTreeWalker {
                     LocMessage.returnTypeUnknown(),
                     node.returnExpression ?? node
                 );
-            } else if (isPartlyUnknown(returnType)) {
-                this._evaluator.addDiagnostic(
-                    DiagnosticRule.reportUnknownVariableType,
-                    LocMessage.returnTypePartiallyUnknown().format({
-                        returnType: this._evaluator.printType(returnType, { expandTypeAlias: true }),
-                    }),
-                    node.returnExpression ?? node
-                );
             } else if (isAny(returnType)) {
                 this._evaluator.addDiagnostic(
                     DiagnosticRule.reportAny,
                     LocMessage.returnTypeAny(),
                     node.returnExpression ?? node
                 );
+            } else {
+                const partlyUnknown = isPartlyUnknown(returnType);
+                if (partlyUnknown || isPartlyAny(returnType)) {
+                    const formatter = {
+                        returnType: this._evaluator.printType(returnType, { expandTypeAlias: true }),
+                    };
+                    const returnNode = node.returnExpression ?? node;
+                    if (partlyUnknown) {
+                        this._evaluator.addDiagnostic(
+                            DiagnosticRule.reportUnknownVariableType,
+                            LocMessage.returnTypePartiallyUnknown().format(formatter),
+                            returnNode
+                        );
+                    } else {
+                        this._evaluator.addDiagnostic(
+                            DiagnosticRule.reportAny,
+                            LocMessage.returnTypePartiallyAny().format(formatter),
+                            returnNode
+                        );
+                    }
+                }
             }
         }
 
@@ -4769,16 +4809,28 @@ export class Checker extends ParseTreeWalker {
                 LocMessage.returnTypeUnknown(),
                 node.name
             );
-        } else if (isPartlyUnknown(returnType)) {
-            this._evaluator.addDiagnostic(
-                DiagnosticRule.reportUnknownParameterType,
-                LocMessage.returnTypePartiallyUnknown().format({
-                    returnType: this._evaluator.printType(returnType, { expandTypeAlias: true }),
-                }),
-                node.name
-            );
         } else if (isAny(returnType)) {
             this._evaluator.addDiagnostic(DiagnosticRule.reportAny, LocMessage.returnTypeAny(), node.name);
+        } else {
+            const partlyUnknown = isPartlyUnknown(returnType);
+            if (partlyUnknown || isPartlyAny(returnType)) {
+                const formatter = {
+                    returnType: this._evaluator.printType(returnType, { expandTypeAlias: true }),
+                };
+                if (partlyUnknown) {
+                    this._evaluator.addDiagnostic(
+                        DiagnosticRule.reportUnknownParameterType,
+                        LocMessage.returnTypePartiallyUnknown().format(formatter),
+                        node.name
+                    );
+                } else {
+                    this._evaluator.addDiagnostic(
+                        DiagnosticRule.reportAny,
+                        LocMessage.returnTypePartiallyAny().format(formatter),
+                        node.name
+                    );
+                }
+            }
         }
     }
 

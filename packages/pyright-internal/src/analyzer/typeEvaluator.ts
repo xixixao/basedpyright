@@ -240,6 +240,7 @@ import {
     isNoneInstance,
     isNoneTypeClass,
     isOptionalType,
+    isPartlyAny,
     isPartlyUnknown,
     isProperty,
     isTupleClass,
@@ -12073,23 +12074,6 @@ export function createTypeEvaluator(importLookup: ImportLookup, evaluatorOptions
                         LocMessage.argTypeUnknown() + diagAddendum.getString(),
                         argParam.errorNode
                     );
-                } else if (isPartlyUnknown(simplifiedType)) {
-                    // If the parameter type is also partially unknown, don't report
-                    // the error because it's likely that the partially-unknown type
-                    // arose due to bidirectional type matching.
-                    if (!isPartlyUnknown(argParam.paramType)) {
-                        const diagAddendum = getDiagAddendum();
-                        diagAddendum.addMessage(
-                            LocAddendum.argumentType().format({
-                                type: printType(simplifiedType, { expandTypeAlias: true }),
-                            })
-                        );
-                        addDiagnostic(
-                            DiagnosticRule.reportUnknownArgumentType,
-                            LocMessage.argTypePartiallyUnknown() + diagAddendum.getString(),
-                            argParam.errorNode
-                        );
-                    }
                 } else if (isAny(simplifiedType)) {
                     const diagAddendum = getDiagAddendum();
                     addDiagnostic(
@@ -12097,6 +12081,35 @@ export function createTypeEvaluator(importLookup: ImportLookup, evaluatorOptions
                         LocMessage.argTypeAny() + diagAddendum.getString(),
                         argParam.errorNode
                     );
+                } else {
+                    const partlyUnknown = isPartlyUnknown(simplifiedType);
+                    if (partlyUnknown || isPartlyAny(simplifiedType)) {
+                        // If the parameter type is also partially unknown, don't report
+                        // the error because it's likely that the partially-unknown type
+                        // arose due to bidirectional type matching.
+                        if (!isPartlyUnknown(argParam.paramType)) {
+                            const diagAddendum = getDiagAddendum();
+                            diagAddendum.addMessage(
+                                LocAddendum.argumentType().format({
+                                    type: printType(simplifiedType, { expandTypeAlias: true }),
+                                })
+                            );
+                            const addendum = diagAddendum.getString();
+                            if (partlyUnknown) {
+                                addDiagnostic(
+                                    DiagnosticRule.reportUnknownArgumentType,
+                                    LocMessage.argTypePartiallyUnknown() + addendum,
+                                    argParam.errorNode
+                                );
+                            } else {
+                                addDiagnostic(
+                                    DiagnosticRule.reportAny,
+                                    LocMessage.argTypePartiallyAny() + addendum,
+                                    argParam.errorNode
+                                );
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -14121,26 +14134,35 @@ export function createTypeEvaluator(importLookup: ImportLookup, evaluatorOptions
 
         if (isUnknown(simplifiedType)) {
             addDiagnostic(rule, LocMessage.typeUnknown().format({ name: nameValue }), errorNode);
-        } else if (isPartlyUnknown(simplifiedType)) {
-            // If ignoreEmptyContainers is true, don't report the problem for
-            // empty containers (lists or dictionaries). We'll report the problem
-            // only if the assigned value is used later.
-            if (!ignoreEmptyContainers || !isClassInstance(type) || !type.isEmptyContainer) {
-                const diagAddendum = new DiagnosticAddendum();
-                diagAddendum.addMessage(
-                    LocAddendum.typeOfSymbol().format({
-                        name: nameValue,
-                        type: printType(simplifiedType, { expandTypeAlias: true }),
-                    })
-                );
-                addDiagnostic(
-                    rule,
-                    LocMessage.typePartiallyUnknown().format({ name: nameValue }) + diagAddendum.getString(),
-                    errorNode
-                );
-            }
         } else if (isAny(simplifiedType)) {
             addDiagnostic(DiagnosticRule.reportAny, LocMessage.typeAny().format({ name: nameValue }), errorNode);
+        } else {
+            const partlyUnknown = isPartlyUnknown(simplifiedType);
+            if (partlyUnknown || isPartlyAny(simplifiedType)) {
+                // If ignoreEmptyContainers is true, don't report the problem for
+                // empty containers (lists or dictionaries). We'll report the problem
+                // only if the assigned value is used later.
+                if (!ignoreEmptyContainers || !isClassInstance(type) || !type.isEmptyContainer) {
+                    const diagAddendum = new DiagnosticAddendum();
+                    diagAddendum.addMessage(
+                        LocAddendum.typeOfSymbol().format({
+                            name: nameValue,
+                            type: printType(simplifiedType, { expandTypeAlias: true }),
+                        })
+                    );
+                    const formatter = { name: nameValue };
+                    const addendum = diagAddendum.getString();
+                    if (partlyUnknown) {
+                        addDiagnostic(rule, LocMessage.typePartiallyUnknown().format(formatter) + addendum, errorNode);
+                    } else {
+                        addDiagnostic(
+                            DiagnosticRule.reportAny,
+                            LocMessage.typePartiallyAny().format(formatter) + addendum,
+                            errorNode
+                        );
+                    }
+                }
+            }
         }
     }
 
