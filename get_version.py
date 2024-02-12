@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from json import loads
+from json import loads  # pyright:ignore[reportAny]
 from pathlib import Path
-from typing import TypedDict, cast
+from typing import TypedDict, cast  # pyright:ignore[reportAny]
 
 
 class LernaJson(TypedDict):
