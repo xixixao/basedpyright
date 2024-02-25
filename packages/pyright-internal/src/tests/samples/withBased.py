@@ -46,3 +46,18 @@ def _():
     with FalseOrNone():
         raise Exception
     print(1)  # unreachable
+
+
+class OnlyNone(contextlib.AbstractContextManager[None]):
+    def __exit__(
+        self,
+        __exc_type: type[BaseException] | None,
+        __exc_value: BaseException | None,
+        __traceback: TracebackType | None,
+    ) -> None:
+        ...
+
+def _():
+    with OnlyNone():
+        raise Exception
+    print(1)  # unreachable
