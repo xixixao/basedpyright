@@ -3393,11 +3393,9 @@ export function combineTypes(subtypes: Type[], maxSubtypeCount?: number, evaluat
             newUnionType.subtypes.find((subtype) => subtype.specialForm)
         ) {
             shouldAddType = true;
-        } else if (
+        } else if (!evaluator.assignType(newUnionType, subtype)) {
             // if the new type is a subtype of a type that's already in the union, it's redundant and therefore
             // does not need to be added to the union
-            !evaluator.assignType(newUnionType, subtype)
-        ) {
             shouldAddType = true;
             if (
                 // if the new type is a supertype of a type that's already in the union, we need to get rid of that
@@ -3414,6 +3412,11 @@ export function combineTypes(subtypes: Type[], maxSubtypeCount?: number, evaluat
                     }
                 }
             }
+        } else if (isAnyOrUnknown(subtype)) {
+            // if the new type is Any or Unknown, it infects the whole union, so we remove everything else and turn it
+            // into Any
+            newUnionType = UnionType.create();
+            UnionType.addType(newUnionType, subtype);
         }
         if (shouldAddType) {
             if (!newUnionType.subtypes.length) {
