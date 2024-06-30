@@ -3377,7 +3377,6 @@ export function combineTypes(subtypes: Type[], maxSubtypeCount?: number, evaluat
     let hitMaxSubtypeCount = false;
 
     expandedTypes.forEach((subtype) => {
-        const subtypeToCompare = subtype.specialForm ?? subtype;
         let shouldAddType = false;
         if (
             // if an evaluator isn't specified, don't do the redundant type check
@@ -3387,19 +3386,23 @@ export function combineTypes(subtypes: Type[], maxSubtypeCount?: number, evaluat
             isTypeVar(subtype) ||
             // no types have been added to the union yet which causes its type to be Never, which would break
             // the redundant type check
-            !newUnionType.subtypes.length
+            !newUnionType.subtypes.length ||
+            // i cant figure out how to check whether a special form is assignable, for now we just skip the
+            // redundant check on special forms
+            subtype.specialForm ||
+            newUnionType.subtypes.find((subtype) => subtype.specialForm)
         ) {
             shouldAddType = true;
         } else if (
             // if the new type is a subtype of a type that's already in the union, it's redundant and therefore
             // does not need to be added to the union
-            !evaluator.assignType(newUnionType, subtypeToCompare)
+            !evaluator.assignType(newUnionType, subtype)
         ) {
             shouldAddType = true;
             if (
                 // if the new type is a supertype of a type that's already in the union, we need to get rid of that
                 // type then replace it with the new wider one
-                evaluator.assignType(subtypeToCompare, newUnionType)
+                evaluator.assignType(subtype, newUnionType)
             ) {
                 const filteredType = removeFromUnion(newUnionType, (type) => evaluator.assignType(subtype, type));
                 if (isUnion(filteredType)) {
