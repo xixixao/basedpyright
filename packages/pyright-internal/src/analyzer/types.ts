@@ -3387,30 +3387,30 @@ export function combineTypes(subtypes: Type[], maxSubtypeCount?: number, evaluat
             isTypeVar(subtype) ||
             // no types have been added to the union yet which causes its type to be Never, which would break
             // the redundant type check
-            !newUnionType.subtypes.length ||
-            // if the new type is a subtype of a type that's already in the union, it's redundant and therefore
-            // does not need to be added to the union
-            evaluator.assignType(newUnionType, subtypeToCompare)
+            !newUnionType.subtypes.length
         ) {
-            //TODO: wtf is this logic this always gets set to true????
             shouldAddType = true;
         } else if (
-            // if the new type is a supertype of a type that's already in the union, we need to get rid of that
-            // type and replace it with the new wider one
-            evaluator.assignType(subtypeToCompare, newUnionType)
+            // if the new type is a subtype of a type that's already in the union, it's redundant and therefore
+            // does not need to be added to the union
+            !evaluator.assignType(newUnionType, subtypeToCompare)
         ) {
-            const filteredType = removeFromUnion(newUnionType, (type) => evaluator.assignType(subtype, type));
-            if (isUnion(filteredType)) {
-                newUnionType = filteredType;
-            } else {
-                newUnionType = UnionType.create();
-                if (filteredType.category !== TypeCategory.Never) {
-                    UnionType.addType(newUnionType, filteredType as UnionableType);
+            shouldAddType = true;
+            if (
+                // if the new type is a supertype of a type that's already in the union, we need to get rid of that
+                // type then replace it with the new wider one
+                evaluator.assignType(subtypeToCompare, newUnionType)
+            ) {
+                const filteredType = removeFromUnion(newUnionType, (type) => evaluator.assignType(subtype, type));
+                if (isUnion(filteredType)) {
+                    newUnionType = filteredType;
+                } else {
+                    newUnionType = UnionType.create();
+                    if (filteredType.category !== TypeCategory.Never) {
+                        UnionType.addType(newUnionType, filteredType as UnionableType);
+                    }
                 }
             }
-            shouldAddType = true;
-        } else {
-            shouldAddType = true;
         }
         if (shouldAddType) {
             if (!newUnionType.subtypes.length) {
