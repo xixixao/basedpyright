@@ -13,6 +13,7 @@ import { ArgumentNode, ExpressionNode, NameNode, ParameterCategory } from '../pa
 import { ClassDeclaration, FunctionDeclaration, SpecialBuiltInClassDeclaration } from './declaration';
 import { Symbol, SymbolTable } from './symbol';
 import { TypeEvaluator } from './typeEvaluatorTypes';
+import { AssignTypeFlags } from './typeUtils';
 
 export const enum TypeCategory {
     // Name is not bound to a value of any type.
@@ -3378,7 +3379,6 @@ export function combineTypes(subtypes: Type[], maxSubtypeCount?: number, evaluat
 
     expandedTypes.forEach((subtype) => {
         let shouldAddType = false;
-        const existingAnyType = newUnionType.subtypes.find(isAnyOrUnknown);
         if (
             // if an evaluator isn't specified, don't do the redundant type check
             !evaluator ||
@@ -3390,9 +3390,6 @@ export function combineTypes(subtypes: Type[], maxSubtypeCount?: number, evaluat
             !newUnionType.subtypes.length
         ) {
             shouldAddType = true;
-        } else if (existingAnyType || isAnyOrUnknown(subtype)) {
-            newUnionType = UnionType.create();
-            UnionType.addType(newUnionType, existingAnyType ?? (subtype as UnionableType));
         } else if (
             // i cant figure out how to check whether a special form is assignable, for now we just skip the
             // redundant check on special forms
@@ -3400,16 +3397,41 @@ export function combineTypes(subtypes: Type[], maxSubtypeCount?: number, evaluat
             newUnionType.subtypes.find((subtype) => subtype.specialForm)
         ) {
             shouldAddType = true;
-        } else if (!evaluator.assignType(newUnionType, subtype)) {
+        } else if (
             // if the new type is a subtype of a type that's already in the union, it's redundant and therefore
             // does not need to be added to the union
+            !evaluator.assignType(
+                newUnionType,
+                subtype,
+                undefined,
+                undefined,
+                undefined,
+                AssignTypeFlags.OverloadOverlapCheck
+            )
+        ) {
             shouldAddType = true;
             if (
                 // if the new type is a supertype of a type that's already in the union, we need to get rid of that
                 // type then replace it with the new wider one
-                evaluator.assignType(subtype, newUnionType)
+                evaluator.assignType(
+                    subtype,
+                    newUnionType,
+                    undefined,
+                    undefined,
+                    undefined,
+                    AssignTypeFlags.OverloadOverlapCheck
+                )
             ) {
-                const filteredType = removeFromUnion(newUnionType, (type) => evaluator.assignType(subtype, type));
+                const filteredType = removeFromUnion(newUnionType, (type) =>
+                    evaluator.assignType(
+                        subtype,
+                        type,
+                        undefined,
+                        undefined,
+                        undefined,
+                        AssignTypeFlags.OverloadOverlapCheck
+                    )
+                );
                 if (isUnion(filteredType)) {
                     newUnionType = filteredType;
                 } else {
