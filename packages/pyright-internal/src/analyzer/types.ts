@@ -3378,6 +3378,7 @@ export function combineTypes(subtypes: Type[], maxSubtypeCount?: number, evaluat
 
     expandedTypes.forEach((subtype) => {
         let shouldAddType = false;
+        const existingAnyType = newUnionType.subtypes.find(isAnyOrUnknown);
         if (
             // if an evaluator isn't specified, don't do the redundant type check
             !evaluator ||
@@ -3386,7 +3387,13 @@ export function combineTypes(subtypes: Type[], maxSubtypeCount?: number, evaluat
             isTypeVar(subtype) ||
             // no types have been added to the union yet which causes its type to be Never, which would break
             // the redundant type check
-            !newUnionType.subtypes.length ||
+            !newUnionType.subtypes.length
+        ) {
+            shouldAddType = true;
+        } else if (existingAnyType || isAnyOrUnknown(subtype)) {
+            newUnionType = UnionType.create();
+            UnionType.addType(newUnionType, existingAnyType ?? (subtype as UnionableType));
+        } else if (
             // i cant figure out how to check whether a special form is assignable, for now we just skip the
             // redundant check on special forms
             subtype.specialForm ||
@@ -3412,11 +3419,6 @@ export function combineTypes(subtypes: Type[], maxSubtypeCount?: number, evaluat
                     }
                 }
             }
-        } else if (isAnyOrUnknown(subtype)) {
-            // if the new type is Any or Unknown, it infects the whole union, so we remove everything else and turn it
-            // into Any
-            newUnionType = UnionType.create();
-            UnionType.addType(newUnionType, subtype);
         }
         if (shouldAddType) {
             if (!newUnionType.subtypes.length) {
